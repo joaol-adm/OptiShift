@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>OptiShift</title>
+
+<style>
+  body { font-family: Arial,sans-serif; margin: 20px; background: #f4f6f8; }
+  h2 { color: #974706; }
+  h3 { color: #004080; } 
+  h4 { color: #EAB200; } 
+  h5 { color: #EE0000; } 
+  table { border-collapse: collapse; width: 100%; margin-bottom: 30px; background: #fff; }
+  th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+  th { background-color: #004080; color: #fff; }
+  td.vazio { background-color: #eee; }
+  td.ocupado { background-color: #d1e7dd; font-weight: bold; }
+  td.ocupadoliderg { background-color: #EDCB77; font-weight: bold; } 
+  td.ocupadoliderc { background-color: #B0E5FA; font-weight: bold; } 
+  .form-section, .filter-section, .export-section, .horascolab-section { background: #fff; padding: 15px; margin-bottom: 20px; border-radius: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.1);}
+  label { display: inline-block; margin-bottom: 6px; }
+  input[type="text"], input[type="time"], select, input[type="date"] { padding: 5px; margin-right: 15px; }
+  button { padding: 8px 15px; background: #004080; color: #fff; border: none; border-radius: 3px; cursor: pointer; margin-right: 8px;}
+  button:hover { background: #003060; }
+  .btn-small { padding: 4px 8px; font-size: 0.85em; }
+  .action-btns button { margin-right: 5px; }
+  #escalaPorDia h3 { margin-top: 30px; }
+  .scrollable-table { max-height: 350px; overflow-y: auto; border: 1px solid #ccc; }
+
+#escalaPorDia table {
+    width: 40%;
+    margin: 20px auto;
+  }
+
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js">
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js">
+</script>
+
+
+</head>
+<body>
+
+
+<div id="loginSection" style="display:none; padding: 20px;">
+  <h2>Login</h2>
+  <label>Usuário: <input type="text" id="loginUser"></label><br><br>
+  <label>Senha: <input type="password" id="loginPass"></label><br><br>
+  <button onclick="fazerLogin()">Entrar</button>
+  <p id="loginMsg" style="color:red;"></p>
+</div>
+
+<div id="mainContent" style="display:none;">
+
+
+<h2> OptiShift | Simulador Inteligente de Escala de Trabalho </h2>
+<h5>Uso Exclusivo BK Sorocaba Shoppping  |  Powered by OpTiXis  |  All Rights Reserved  </h5>
+
+<!-- Botão de logout -->
+<div style="text-align: center; padding: 10 px;">
+  <button onclick="logout()" style="background-color: red;">Sair / LogOut</button>
+</div>
+
+<div class="form-section">
+
+<h3>Importar Escala via Planilha</h3>
+<input type="file" id="arquivoColaboradores" accept=".xls,.xlsx,.csv" />
+<button onclick="importarColaboradores()">Importar</button>
+<br/>
+
+<hr/>
+
+  <h3>Cadastro / Edição de Colaborador</h3>
+  <input type="hidden" id="editarIndex" value="-1" />
+  <label>Nome: <input type="text" id="nome" /></label><br/><br/>
+
+<!-- ADICIONE dentro da div .form-section (onde estão os campos do colaborador): -->
+
+  <div id="diasInputs">
+    <div><strong>Segunda:</strong> Início <input type="time" id="in_Segunda" /> Saída <input type="time" id="out_Segunda" /></div>
+    <div><strong>Terça:</strong> Início <input type="time" id="in_Terça" /> Saída <input type="time" id="out_Terça" /></div>
+    <div><strong>Quarta:</strong> Início <input type="time" id="in_Quarta" /> Saída <input type="time" id="out_Quarta" /></div>
+    <div><strong>Quinta:</strong> Início <input type="time" id="in_Quinta" /> Saída <input type="time" id="out_Quinta" /></div>
+    <div><strong>Sexta:</strong> Início <input type="time" id="in_Sexta" /> Saída <input type="time" id="out_Sexta" /></div>
+    <div><strong>Sábado:</strong> Início <input type="time" id="in_Sábado" /> Saída <input type="time" id="out_Sábado" /></div>
+    <div><strong>Domingo:</strong> Início <input type="time" id="in_Domingo" /> Saída <input type="time" id="out_Domingo" /></div>
+  </div>
+  <br/>
+  <button id="btnAddColaborador" onclick="adicionarOuEditarColaborador()">Adicionar Colaborador</button>
+  <button onclick="limparFormulario()">Limpar</button>
+</div>
+
+<div class="filter-section">
+  <label>Filtro por turno:
+    <select id="turnoFiltro" onchange="renderEscala()">
+      <option value="todos">Todos</option>
+      <option value="diurno">Diurno (08–14h)</option>
+      <option value="noturno">Noturno (14–23h)</option>
+    </select>
+  </label>
+</div>
+
+<div class="export-section">
+  <h3>Exportação</h3>
+
+  <hr/>
+  <h4>Escala Completa</h4>
+
+  <div>
+    <label>Data Início: <input type="date" id="dataInicio" /></label>
+    <label>Data Fim: <input type="date" id="dataFim" /></label>
+  </div>
+
+  <div style="margin-top:10px;">
+<!-- 
+    <button onclick="exportarEscalaCompletaPDF()">Exportar Escala Completa PDF</button>   
+-->
+    <button onclick="exportarEscalaCompletaXLSX()">Exportar Escala Completa XLS</button>
+
+<!-- 
+ </div>
+ 
+  <hr/>
+
+  <div>
+
+    <button onclick="baixarPNG()">Salvar Gráfico (PNG)</button>
+-->
+
+    <button onclick="exportarGraficoPDF()">Salvar Gráfico Escala Completa (PDF)</button>
+  </div>
+ 
+ <hr/>
+
+  <h4>Escala Por Colaborador</h4>
+  <div>
+    <label>Colaborador para exportar: 
+      <select id="selectColaboradorExport"></select>
+    </label>
+    <button onclick="exportarEscalaColaboradorXLSX()">Exportar XLS Colaborador</button>
+    <button onclick="exportarEscalaColaboradorPDF()">Exportar PDF Colaborador</button>
+  </div>
+
+</div>
+
+<div class="horascolab-section">
+
+ <hr/>
+  <h4>Banco de Horas</h4>
+
+<div>
+  <button onclick="mostrarHorasColaborador()">Visualizar Total de Horas TODOS Colaboradores</button>
+  <button onclick="exportarHorasColaboradoresPDF()">Exportar Total de Horas TODOS Colaboradores (PDF)</button>
+
+</div>
+
+  <hr/>
+
+ <div id="visualizacaoHoras"></div>
+</div>
+<div id="escalaPorDia"></div>
+
+
+<!-- Dependências -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script>
+
+function exportarHorasColaboradoresPDF() {
+  if (!colaboradores || colaboradores.length === 0) {
+    alert("Nenhum colaborador cadastrado.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const margemEsq = 15;
+  const margemTopo = 20;
+  const larguraPagina = doc.internal.pageSize.getWidth();
+  const alturaPagina = doc.internal.pageSize.getHeight();
+
+  // Preparar dados (filtrando colaboradores com horas > 0)
+  const dadosTabela = colaboradores
+    .map(c => {
+      let totalMinutos = 0;
+      c.dias.forEach(d => {
+        if (d.entrada && d.saida) {
+          const [entH, entM] = d.entrada.split(":").map(Number);
+          const [saiH, saiM] = d.saida.split(":").map(Number);
+          const minutos = (saiH * 60 + saiM) - (entH * 60 + entM);
+          if (minutos > 0) totalMinutos += minutos;
+        }
+      });
+      const horas = Math.floor(totalMinutos / 60);
+      const minutos = totalMinutos % 60;
+      return { nome: c.nome, totalHoras: `${horas}h ${minutos}min`, totalMinutos };
+    })
+    .filter(c => c.totalMinutos > 0)
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+
+  if (dadosTabela.length === 0) {
+    alert("Nenhum colaborador com horas registradas para exportar.");
+    return;
+  }
+
+  // Cabeçalho do PDF
+  doc.setFontSize(16);
+  doc.text("Total de Horas por Colaborador", margemEsq, margemTopo);
+
+  // Configurações tabela
+  const startY = margemTopo + 10;
+  const linhaAltura = 8;
+  const col1Width = 10;   // Nº
+  const col2Width = 100;  // Nome
+  const col3Width = 40;   // Total Horas
+  const larguraTabela = col1Width + col2Width + col3Width;
+  const margemDir = margemEsq + larguraTabela;
+
+  // Desenhar cabeçalho da tabela
+  let y = startY;
+  doc.setFontSize(12);
+  doc.setFillColor(200, 200, 200);
+  doc.rect(margemEsq, y - linhaAltura + 2, larguraTabela, linhaAltura, 'F'); // fundo cinza
+
+  doc.setTextColor(0);
+  doc.text("#", margemEsq + 3, y);
+  doc.text("Nome", margemEsq + col1Width + 3, y);
+  doc.text("Total de Horas", margemEsq + col1Width + col2Width + 3, y);
+
+  // Desenhar linhas da tabela
+  y += 2;
+
+  doc.setLineWidth(0.1);
+  doc.line(margemEsq, y, margemDir, y); // linha horizontal abaixo cabeçalho
+
+  y += linhaAltura;
+
+  // Função para rodapé com data e paginação
+  function rodape() {
+    const dataAtual = new Date().toLocaleDateString("pt-BR");
+    const paginaAtual = doc.internal.getCurrentPageInfo().pageNumber;
+    const totalPaginas = doc.internal.getNumberOfPages();
+
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(`Gerado por: ${USUARIO}, em: ${dataAtual}` , margemEsq, alturaPagina - 10);
+  // doc.text(`Gerado em: ${dataAtual}`, margemEsq, alturaPagina - 10);
+    doc.text(`Página ${paginaAtual} de ${totalPaginas}`, larguraPagina - 40, alturaPagina - 10);
+  }
+
+  // Preencher dados da tabela
+  for (let i = 0; i < dadosTabela.length; i++) {
+    if (y + linhaAltura > alturaPagina - 20) { // espaço para rodapé
+      rodape();
+      doc.addPage();
+      y = margemTopo;
+
+      // Redesenhar cabeçalho na nova página
+      doc.setFillColor(200, 200, 200);
+      doc.rect(margemEsq, y - linhaAltura + 2, larguraTabela, linhaAltura, 'F');
+      doc.setTextColor(0);
+      doc.text("#", margemEsq + 3, y);
+      doc.text("Nome", margemEsq + col1Width + 3, y);
+      doc.text("Total de Horas", margemEsq + col1Width + col2Width + 3, y);
+      y += 2;
+      doc.line(margemEsq, y, margemDir, y);
+      y += linhaAltura;
+    }
+
+    const item = dadosTabela[i];
+    doc.setTextColor(0);
+    doc.text(String(i + 1), margemEsq + 3, y);
+    doc.text(item.nome, margemEsq + col1Width + 3, y);
+    doc.text(item.totalHoras, margemEsq + col1Width + col2Width + 3, y);
+
+    y += linhaAltura;
+  }
+
+  rodape();
+
+  doc.save("total_horas_colaboradores.pdf");
+}
+
+
+
+
+function mostrarHorasColaborador() {
+  if(colaboradores.length === 0) return alert("Nenhum colaborador cadastrado.");
+  const div = document.getElementById("visualizacaoHoras");
+  div.innerHTML = "<h3>Total de Horas por Colaborador</h3>";
+
+  colaboradores.forEach(c => {
+    let totalMinutos = 0;
+    c.dias.forEach(d => {
+      const [entH, entM] = d.entrada.split(":").map(Number);
+      const [saiH, saiM] = d.saida.split(":").map(Number);
+      const minutos = (saiH*60 + saiM) - (entH*60 + entM);
+      if (minutos > 0) totalMinutos += minutos;
+    });
+    const h = Math.floor(totalMinutos / 60);
+    const m = totalMinutos % 60;
+    const p = document.createElement("p");
+    p.textContent = `${c.nome}: ${h}h ${m}min`;
+    div.appendChild(p);
+  });
+}
+
+
+const colaboradores = [];
+
+function adicionarOuEditarColaborador() {
+  const nome = document.getElementById("nome").value.trim();
+  if (!nome) {
+    alert("Informe o nome do colaborador.");
+    return;
+  }
+  const diasSemana = ["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"];
+  const dias = diasSemana.map(dia => {
+    const entrada = document.getElementById("in_" + dia).value;
+    const saida = document.getElementById("out_" + dia).value;
+    if (entrada && saida) return { dia, entrada, saida };
+    return null;
+  }).filter(x => x);
+
+  if (dias.length === 0) {
+    alert("Informe pelo menos um horário válido para algum dia.");
+    return;
+  }
+
+  const editarIndex = parseInt(document.getElementById("editarIndex").value);
+
+  if (editarIndex >= 0) {
+    colaboradores[editarIndex] = { nome, dias };
+    document.getElementById("editarIndex").value = -1;
+    document.getElementById("btnAddColaborador").textContent = "Adicionar Colaborador";
+  } else {
+    // Evita nomes duplicados
+    if (colaboradores.some(c => c.nome.toLowerCase() === nome.toLowerCase())) {
+      alert("Já existe um colaborador com esse nome.");
+      return;
+    }
+    colaboradores.push({ nome, dias });
+  }
+
+  limparFormulario();
+  renderEscala();
+  atualizarSelectColaboradores();
+}
+
+function limparFormulario() {
+  document.getElementById("nome").value = "";
+  document.getElementById("editarIndex").value = -1;
+  document.getElementById("btnAddColaborador").textContent = "Adicionar Colaborador";
+  ["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"].forEach(dia => {
+    document.getElementById("in_" + dia).value = "";
+    document.getElementById("out_" + dia).value = "";
+  });
+}
+
+function editarColaborador(index) {
+  const c = colaboradores[index];
+  document.getElementById("nome").value = c.nome;
+  c.dias.forEach(d => {
+    document.getElementById("in_" + d.dia).value = d.entrada;
+    document.getElementById("out_" + d.dia).value = d.saida;
+  });
+  document.getElementById("editarIndex").value = index;
+  document.getElementById("btnAddColaborador").textContent = "Salvar Alteração";
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+
+function excluirColaborador(index) {
+  if(confirm(`Excluir colaborador ${colaboradores[index].nome}?`)) {
+    colaboradores.splice(index, 1);
+    renderEscala();
+    atualizarSelectColaboradores();
+  }
+}
+
+function atualizarSelectColaboradores() {
+  const sel = document.getElementById("selectColaboradorExport");
+  sel.innerHTML = "";
+  colaboradores.forEach((c, i) => {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = c.nome;
+    sel.appendChild(opt);
+  });
+}
+atualizarSelectColaboradores();
+
+
+
+function renderEscala() {
+  const container = document.getElementById("escalaPorDia");
+  container.innerHTML = "";
+  const diasSemana = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
+  const turno = document.getElementById("turnoFiltro").value;
+  const horas = Array.from({ length: 15 }, (_, i) => i + 8); // 8h até 22h
+
+  diasSemana.forEach(dia => {
+    const colaboradoresDoDia = colaboradores.filter(c =>
+      c.dias.find(d => d.dia === dia && filtroTurnoOK(d, turno))
+    );
+
+    // 👇 Se não houver nenhum colaborador nesse dia, pula para o próximo
+    if (colaboradoresDoDia.length === 0) return;
+
+    const tabela = document.createElement("table");
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+
+    
+const thHora = document.createElement("th");
+thHora.textContent = "Horário";
+headerRow.appendChild(thHora);
+
+// NOVA COLUNA: "Qtde"
+const thQtde = document.createElement("th");
+thQtde.textContent = "Qtde";
+headerRow.appendChild(thQtde);
+
+// Nomes dos colaboradores
+colaboradoresDoDia.forEach((c) => {
+  const th = document.createElement("th");
+  th.textContent = c.nome;
+  headerRow.appendChild(th);
+});
+
+
+
+    thead.appendChild(headerRow);
+    tabela.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+
+    horas.forEach(h => {
+      const tr = document.createElement("tr");
+      const horaLabel = document.createElement("td");
+      horaLabel.textContent = `${h}h às ${h + 1}h`;
+      tr.appendChild(horaLabel);
+
+// NOVA COLUNA: contar colaboradores nesse horário
+  let count = 0;
+  colaboradoresDoDia.forEach(c => {
+    const reg = c.dias.find(d => d.dia === dia);
+    if (reg && dentroDoHorario(h, reg.entrada, reg.saida)) {
+      count++;
+    }
+  });
+
+const tdQtde = document.createElement("td");
+tdQtde.textContent = count;
+tdQtde.style.fontWeight = "bold";
+tdQtde.style.textAlign = "center";
+
+// Cores conforme imagem enviada
+switch (count) {
+  case 2:
+    tdQtde.style.backgroundColor = "#ffff00"; // Amarelo
+    break;
+  case 3:
+    tdQtde.style.backgroundColor = "#ccffcc"; // Verde claro
+    break;
+  case 4:
+    tdQtde.style.backgroundColor = "#cce5ff"; // Azul claro
+    break;
+  case 5:
+    tdQtde.style.backgroundColor = "#ffd9cc"; // Rosa claro
+    break;
+  default:
+    tdQtde.style.backgroundColor = "#ff6666"; // Vermelho escuro para valor inesperado
+    break;
+}
+
+
+
+
+  tr.appendChild(tdQtde);
+
+  // Células dos colaboradores
+
+
+      colaboradoresDoDia.forEach((c) => {
+        const td = document.createElement("td");
+        const reg = c.dias.find(d => d.dia === dia);
+        
+
+if (reg && dentroDoHorario(h, reg.entrada, reg.saida)) {
+  if (c.nome === "Flavia") {
+    td.className = "ocupadoliderg";  // nova classe com cor específica
+  } else {
+ 
+if (c.nome === "Giovanna") {
+    td.className = "ocupadoliderc";  // nova classe com cor específica
+  } else {
+   
+if (c.nome === "Stephany") {
+    td.className = "ocupadoliderc";  // nova classe com cor específica
+  } else {
+    td.className = "ocupado";
+
+  }}}
+
+  td.textContent = c.nome;
+} else {
+  td.className = "vazio";
+  td.textContent = "";
+}
+
+
+
+        tr.appendChild(td);
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    tabela.appendChild(tbody);
+
+    // Linha de ações: editar e excluir
+    const actionRow = document.createElement("tr");
+    const thAction = document.createElement("th");
+    thAction.textContent = "Ações";
+    actionRow.appendChild(thAction);
+
+    colaboradoresDoDia.forEach(c => {
+      const thBtn = document.createElement("th");
+      const idx = colaboradores.findIndex(col => col.nome === c.nome);
+
+      const div = document.createElement("div");
+      div.className = "action-btns";
+
+      const btnEditar = document.createElement("button");
+      btnEditar.className = "btn-small";
+      btnEditar.textContent = "Editar";
+      btnEditar.onclick = () => editarColaborador(idx);
+      div.appendChild(btnEditar);
+
+      const btnExcluir = document.createElement("button");
+      btnExcluir.className = "btn-small";
+      btnExcluir.textContent = "Excluir";
+      btnExcluir.onclick = () => excluirColaborador(idx);
+      div.appendChild(btnExcluir);
+
+      thBtn.appendChild(div);
+      actionRow.appendChild(thBtn);
+    });
+
+    tabela.appendChild(actionRow);
+
+    const titulo = document.createElement("h3");
+    titulo.textContent = dia.toUpperCase();
+    container.appendChild(titulo);
+    container.appendChild(tabela);
+  });
+
+  atualizarSelectColaboradores();
+  document.getElementById("visualizacaoHoras").innerHTML = "";
+}
+
+
+
+
+
+function dentroDoHorario(hora, entrada, saida) {
+  const ent = parseInt(entrada.split(":")[0]);
+  const sai = parseInt(saida.split(":")[0]);
+  return hora >= ent && hora < sai;
+}
+
+function filtroTurnoOK(reg, turno) {
+  const ent = parseInt(reg.entrada.split(":")[0]);
+  if (turno === "diurno") return ent >= 8 && ent < 14;
+  if (turno === "noturno") return ent >= 14 && ent < 23;
+  return true;
+}
+
+function exportarEscalaCompletaXLSX() {
+  if(colaboradores.length === 0) return alert("Nenhum colaborador cadastrado.");
+  const dataInicio = document.getElementById("dataInicio").value;
+  const dataFim = document.getElementById("dataFim").value;
+  // if (!dataInicio || !dataFim) return alert("Informe intervalo de datas para exportar.");
+
+  const diasSemana = ["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"];
+  // Exporta a escala filtrando pelos dias dentro do intervalo - para simplificar, usamos só dias da semana
+  // Aqui só exporta todos os registros, não há intervalo com datas reais (pois escala é semanal fixa)
+  // No mundo real, essa parte precisaria mapear datas reais para dias da semana
+  // Aqui vamos exportar toda a escala como está, com filtro simples
+
+  const wb = XLSX.utils.book_new();
+  const data = [["Nome", "Dia da Semana", "Entrada", "Saída"]];
+  colaboradores.forEach(c => {
+    c.dias.forEach(d => {
+      if (filtroTurnoOK(d, document.getElementById("turnoFiltro").value)) {
+        data.push([c.nome, d.dia, d.entrada, d.saida]);
+      }
+    });
+  });
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, "Escala Completa");
+  XLSX.writeFile(wb, "escala_completa.xlsx");
+}
+
+function exportarEscalaCompletaPDF() {
+  if(colaboradores.length === 0) return alert("Nenhum colaborador cadastrado.");
+
+  const container = document.getElementById("escalaPorDia");
+  if (!container.innerHTML.trim()) return alert("Nenhuma escala para exportar. Gere a escala antes.");
+
+  html2canvas(container, {scale: 2}).then(canvas => {
+    const imgData = canvas.toDataURL("image/png");
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('l', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgProps = pdf.getImageProperties(imgData);
+    const pdfImgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    pdf.text("Escala Completa", 10, 10);
+    pdf.addImage(imgData, 'PNG', 0, 15, pdfWidth, pdfImgHeight);
+    pdf.save("escala_completa.pdf");
+  });
+}
+
+function exportarEscalaColaboradorXLSX() {
+  if(colaboradores.length === 0) return alert("Nenhum colaborador cadastrado.");
+  const idx = document.getElementById("selectColaboradorExport").value;
+  const colaborador = colaboradores[idx];
+  if(!colaborador) return alert("Selecione um colaborador válido.");
+  const dataInicio = document.getElementById("dataInicio").value;
+  const dataFim = document.getElementById("dataFim").value;
+  // if (!dataInicio || !dataFim) return alert("Informe intervalo de datas para exportar.");
+
+  const data = [["Dia da Semana", "Entrada", "Saída"]];
+  colaborador.dias.forEach(d => {
+    if(filtroTurnoOK(d, document.getElementById("turnoFiltro").value))
+      data.push([d.dia, d.entrada, d.saida]);
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, colaborador.nome);
+  XLSX.writeFile(wb, `escala_${colaborador.nome}.xlsx`);
+}
+
+function exportarEscalaColaboradorPDF() {
+  if (colaboradores.length === 0) return alert("Nenhum colaborador cadastrado.");
+  const idx = document.getElementById("selectColaboradorExport").value;
+  const colaborador = colaboradores[idx];
+  if (!colaborador) return alert("Selecione um colaborador válido.");
+
+  // Criar tabela simples para PDF
+  const html = `
+    <div style="font-family: Arial;">
+      <h2>Escala de ${colaborador.nome}</h2>
+      <table border="1" cellspacing="0" cellpadding="5" style="border-collapse: collapse; width: 100%;">
+        <thead>
+          <tr style="background-color:#004080; color:#fff;">
+            <th>Dia da Semana</th>
+            <th>Entrada</th>
+            <th>Saída</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${colaborador.dias.map(d => `
+            <tr>
+              <td>${d.dia}</td>
+              <td>${d.entrada}</td>
+              <td>${d.saida}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
+  html2canvas(container, { scale: 2 }).then(canvas => {
+    const imgData = canvas.toDataURL("image/png");
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+
+    const imgProps = pdf.getImageProperties(imgData);
+    const imgWidth = pdfWidth;
+    const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+
+    const dataHoraGeracao = new Date().toLocaleString();
+
+    // Se a imagem couber numa página, apenas insere com rodapé
+    if (imgHeight <= pdfHeight - 20) { // margem para rodapé
+      pdf.addImage(imgData, 'PNG', 0, 10, imgWidth, imgHeight);
+
+      // Rodapé
+      const rodapeTexto = `Gerado por: ${USUARIO}, em: ${dataHoraGeracao} | Página 1 de 1`;
+      pdf.setFontSize(9);
+      pdf.setTextColor(150);
+      pdf.text(rodapeTexto, pdfWidth / 2, pdfHeight - 10, { align: 'center' });
+
+      pdf.save(`escala_${colaborador.nome}.pdf`);
+      document.body.removeChild(container);
+    } else {
+      // Quebrar imagem em várias páginas (verticalmente)
+      const pageHeight = pdfHeight - 20; // deixar margem para rodapé
+      let heightLeft = imgHeight;
+      let position = 10;
+      let pageNum = 1;
+
+      while (heightLeft > 0) {
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+
+        // Ajustar parte da imagem visível na página
+        if (heightLeft < pageHeight) {
+          // última página, só mostra a parte restante
+          const clipHeight = heightLeft * (canvas.height / imgHeight);
+          // não tem método direto no jsPDF pra clipar a imagem,
+          // solução simplificada: posicionar imagem parcialmente, não ideal mas serve para a maioria
+        }
+
+        // Rodapé
+        const rodapeTexto = `Gerado em: ${dataHoraGeracao} | Página ${pageNum}`;
+        pdf.setFontSize(9);
+        pdf.setTextColor(150);
+        pdf.text(rodapeTexto, pdfWidth / 2, pdfHeight - 10, { align: 'center' });
+
+        heightLeft -= pageHeight;
+        if (heightLeft > 0) {
+          pdf.addPage();
+          position = 10;
+          pageNum++;
+        }
+      }
+
+      pdf.save(`escala_${colaborador.nome}.pdf`);
+      document.body.removeChild(container);
+    }
+  });
+}
+
+
+// antigo function mostrarhorascolaborador
+
+function baixarPNG() {
+  const container = document.getElementById("escalaPorDia");
+  if (!container.innerHTML.trim()) return alert("Nenhuma escala para salvar.");
+
+  html2canvas(container, {scale: 2}).then(canvas => {
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = "escala.png";
+    a.click();
+  });
+}
+
+function exportarGraficoPDF() {
+  const container = document.getElementById("escalaPorDia");
+  const tabelas = container.querySelectorAll("table");
+  if (tabelas.length === 0) return alert("Nenhuma escala para exportar.");
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('l', 'mm', 'a4'); // paisagem
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = pdf.internal.pageSize.getHeight();
+
+  const tabelasValidas = Array.from(tabelas).filter(tabela => {
+    // Verifica se há pelo menos uma célula com a classe "ocupado"
+    return tabela.querySelectorAll("td.ocupado").length > 0;
+  });
+
+  if (tabelasValidas.length === 0) {
+    alert("Nenhuma escala preenchida para exportar.");
+    return;
+  }
+
+  const dataHoraGeracao = new Date().toLocaleString();
+
+  const processarTabela = (index) => {
+    if (index >= tabelasValidas.length) {
+      pdf.save("escala_graficos.pdf");
+      return;
+    }
+
+    const tabela = tabelasValidas[index];
+    const titulo = tabela.previousElementSibling?.textContent || `Gráfico ${index + 1}`;
+
+    html2canvas(tabela, { scale: 2 }).then(canvas => {
+      const imgData = canvas.toDataURL("image/png");
+      const imgProps = pdf.getImageProperties(imgData);
+
+      const margemX = 10;
+      const margemY = 20;
+      const maxWidth = pdfWidth - 2 * margemX;
+      const maxHeight = pdfHeight - 2 * margemY;
+
+      let imgWidth = maxWidth;
+      let imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+
+      if (imgHeight > maxHeight) {
+        const scale = maxHeight / imgHeight;
+        imgWidth *= scale;
+        imgHeight *= scale;
+      }
+
+      if (index > 0) pdf.addPage();
+      pdf.setFontSize(14);
+      pdf.text(titulo, margemX, 15);
+      pdf.addImage(imgData, 'PNG', margemX, margemY, imgWidth, imgHeight);
+
+      // Rodapé com data/hora e número da página
+      const rodapeTexto = `Gerado por: ${USUARIO}, em: ${dataHoraGeracao} | Página ${index + 1} de ${tabelasValidas.length}`;
+      pdf.setFontSize(9);
+      pdf.setTextColor(150);
+      pdf.text(rodapeTexto, pdfWidth / 2, pdfHeight - 10, { align: 'center' });
+
+      processarTabela(index + 1);
+    });
+  };
+
+  processarTabela(0);
+}
+
+// Render inicial
+renderEscala();
+
+
+
+// ... [Todo o seu script atual continua aqui]
+
+// NOVA FUNÇÃO: Importar e sobrescrever colaboradores da planilha
+
+
+function importarColaboradores() {
+  const input = document.getElementById('arquivoColaboradores');
+  if (!input.files.length) return alert("Selecione um arquivo.");
+  const file = input.files[0];
+  const reader = new FileReader();
+
+  reader.onload = e => {
+    const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+    const dataJson = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+    const m = {};
+
+    const horaValida = str => {
+      if (typeof str !== "string") str = String(str);
+      const match = str.match(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/);
+      return match !== null;
+    };
+
+	const diasValidos = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
+
+
+    function formatarHora(valor) {
+      if (typeof valor === "number") {
+        const totalMinutos = Math.round(valor * 24 * 60);
+        const horas = String(Math.floor(totalMinutos / 60)).padStart(2, '0');
+        const minutos = String(totalMinutos % 60).padStart(2, '0');
+        return `${horas}:${minutos}`;
+      }
+      return String(valor || "").trim();
+    }
+
+    let erros = [];
+
+    dataJson.forEach((row, idx) => {
+      const nome = String(row["Nome"] || "").trim();
+      const dia = String(row["Dia da Semana"] || "").trim();
+      const ent = formatarHora(row["Entrada"]);
+      const sai = formatarHora(row["Saída"]);
+
+      if (!nome || !dia || !ent || !sai) {
+        erros.push(`Linha ${idx + 2}: dados incompletos.`);
+        return;
+      }
+
+
+	if (!diasValidos.includes(dia)) {
+	  erros.push(`Linha ${idx + 2}: dia da semana inválido ("${dia}").`);
+	  return;
+	}
+
+
+
+      if (!horaValida(ent) || !horaValida(sai)) {
+        erros.push(`Linha ${idx + 2}: hora inválida ("${ent}" - "${sai}").`);
+        return;
+      }
+
+      if (!m[nome]) m[nome] = [];
+      m[nome].push({ dia, entrada: ent, saida: sai });
+    });
+
+    if (erros.length > 0) {
+      alert("Erros encontrados:\n\n" + erros.join("\n"));
+      return;
+    }
+
+    let ins = 0, upd = 0;
+    Object.keys(m).forEach(n => {
+      const i = colaboradores.findIndex(c => c.nome.toLowerCase() === n.toLowerCase());
+      if (i >= 0) { colaboradores[i] = { nome: n, dias: m[n] }; upd++ }
+      else { colaboradores.push({ nome: n, dias: m[n] }); ins++ }
+    });
+
+    alert(`${ins} novos colaboradores adicionados.\n${upd} atualizados.`);
+    input.value = "";
+    renderEscala();
+    atualizarSelectColaboradores();
+  };
+
+  reader.readAsArrayBuffer(file);
+}
+
+
+</script>
+
+<script>
+// Login simples com expiração de 15 dias (em localStorage)
+// Usuário e senha fixos — não usar em ambiente seguro/real
+
+const USUARIO = "Gerente";
+const SENHA = "26487";
+const DIAS_VALIDOS = 5;
+
+function verificarLogin() {
+  const logado = localStorage.getItem("logado") === "true";
+  const expiraStr = localStorage.getItem("expira");
+  const expira = expiraStr ? new Date(expiraStr) : null;
+  const agora = new Date();
+
+  if (logado && expira && agora < expira) {
+    document.getElementById("loginSection").style.display = "none";
+    document.getElementById("mainContent").style.display = "block";
+    renderEscala(); // garantir que a escala seja renderizada ao mostrar conteúdo
+  } else {
+    localStorage.removeItem("logado");
+    localStorage.removeItem("expira");
+    document.getElementById("loginSection").style.display = "block";
+    document.getElementById("mainContent").style.display = "none";
+  }
+}
+
+function fazerLogin() {
+  const user = document.getElementById("loginUser").value.trim();
+  const pass = document.getElementById("loginPass").value.trim();
+
+  if (user === USUARIO && pass === SENHA) {
+    const expira = new Date();
+    expira.setDate(expira.getDate() + DIAS_VALIDOS);
+    localStorage.setItem("logado", "true");
+    localStorage.setItem("expira", expira.toISOString());
+    document.getElementById("loginMsg").textContent = "";
+    verificarLogin();
+  } else {
+    document.getElementById("loginMsg").textContent = "Usuário ou senha incorretos!";
+  }
+}
+
+function logout() {
+  localStorage.removeItem("logado");
+  localStorage.removeItem("expira");
+  verificarLogin();
+}
+
+document.addEventListener("DOMContentLoaded", verificarLogin);
+
+</script>
+
+</div> <!-- Fim da div #mainContent -->
+
+
+
+
+</body>
+</html>
